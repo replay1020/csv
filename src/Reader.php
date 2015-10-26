@@ -4,7 +4,7 @@
 *
 * @license http://opensource.org/licenses/MIT
 * @link https://github.com/thephpleague/csv/
-* @version 7.2.0
+* @version 8.0.0
 * @package League.csv
 *
 * For the full copyright and license information, please view the LICENSE
@@ -12,7 +12,6 @@
 */
 namespace League\Csv;
 
-use CallbackFilterIterator;
 use InvalidArgumentException;
 use Iterator;
 use League\Csv\Modifier\MapIterator;
@@ -34,34 +33,19 @@ class Reader extends AbstractCsv
     protected $stream_filter_mode = STREAM_FILTER_READ;
 
     /**
-     * Returns a Filtered Iterator
-     *
-     * DEPRECATION WARNING! This method will be removed in the next major point release
-     *
-     * @deprecated deprecated since version 7.2
-     *
-     * @return Iterator
-     */
-    public function query(callable $callable = null)
-    {
-        return $this->fetch($callable);
-    }
-
-    /**
      * Return a Filtered Iterator
      *
-     * @param callable $callable a callable function to be applied to each Iterator item
+     * @param callable|null $callable a callable function to be applied to each Iterator item
      *
      * @return Iterator
      */
     public function fetch(callable $callable = null)
     {
-        $filterArray = function ($row) {
+        $this->addFilter(function ($row) {
             return is_array($row);
-        };
+        });
         $iterator = $this->getIterator();
         $iterator = $this->applyBomStripping($iterator);
-        $iterator = new CallbackFilterIterator($iterator, $filterArray);
         $iterator = $this->applyIteratorFilter($iterator);
         $iterator = $this->applyIteratorSortBy($iterator);
         $iterator = $this->applyIteratorInterval($iterator);
@@ -103,6 +87,8 @@ class Reader extends AbstractCsv
     /**
      * Returns a single row from the CSV
      *
+     * By default if no offset is provided the first row of the CSV is selected
+     *
      * @param int $offset
      *
      * @throws InvalidArgumentException If the $offset is not a valid Integer
@@ -120,6 +106,93 @@ class Reader extends AbstractCsv
     }
 
     /**
+     * Returns a single column from the CSV data
+     *
+     * The callable function will be applied to each value to be return
+     *
+     * By default if no column index is provided the first column of the CSV is selected
+     *
+     * @param int           $column_index field Index
+     * @param callable|null $callable     a callable function
+     *
+     * @throws InvalidArgumentException If the column index is not a positive integer or 0
+     *
+     * @return Iterator
+     */
+    public function fetchColumn($columnIndex = 0, callable $callable = null)
+    {
+        $this->assertValidColumnIndex($columnIndex);
+
+        $filterColumn = function ($row) use ($columnIndex) {
+            return array_key_exists($columnIndex, $row);
+        };
+
+        $selectColumn = function ($row) use ($columnIndex) {
+            return $row[$columnIndex];
+        };
+
+        $this->addFilter($filterColumn);
+        $iterator = $this->fetch($selectColumn);
+        if (!is_null($callable)) {
+            return new MapIterator($iterator, $callable);
+        }
+
+        return $iterator;
+    }
+
+    /**
+     * Validate a CSV row index
+     *
+     * @param int $index
+     *
+     * @throws InvalidArgumentException If the column index is not a positive integer or 0
+     */
+    protected function assertValidColumnIndex($index)
+    {
+        if (false === filter_var($index, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]])) {
+            throw new InvalidArgumentException('the column index must be a positive integer or 0');
+        }
+    }
+
+    /**
+     * Retrive CSV data as pairs
+     *
+     * Fetches an associative array of all rows as key-value pairs (first
+     * column is the key, second column is the value).
+     *
+     * By default if no column index is provided:
+     * - the first CSV column is used to provide the keys
+     * - the second CSV column is used to provide the value
+     *
+     * @param int           $offsetColumnIndex The column index to server as offset
+     * @param int           $valueColumnIndex  The column index to server as value
+     * @param callable|null $callable          Callback function to run for each element in each array
+     *
+     * @return Iterator
+     */
+    public function fetchPairs($offsetColumnIndex = 0, $valueColumnIndex = 1, callable $callable = null)
+    {
+        $this->assertValidColumnIndex($offsetColumnIndex);
+        $this->assertValidColumnIndex($valueColumnIndex);
+        $filterPairs = function ($row) use ($offsetColumnIndex, $valueColumnIndex) {
+            return array_key_exists($offsetColumnIndex, $row) && array_key_exists($valueColumnIndex, $row);
+        };
+        $selectPairs = function ($row) use ($offsetColumnIndex, $valueColumnIndex) {
+            return [$row[$offsetColumnIndex], $row[$valueColumnIndex]];
+        };
+        $this->addFilter($filterPairs);
+        $iterator = $this->fetch($selectPairs);
+
+        if (!is_null($callable)) {
+            $iterator = new MapIterator($iterator, $callable);
+        }
+
+        foreach ($iterator as $row) {
+            yield $row[0] => $row[1];
+        }
+    }
+
+    /**
      * Returns a sequential array of all CSV lines
      *
      * The callable function will be applied to each Iterator item
@@ -131,38 +204,6 @@ class Reader extends AbstractCsv
     public function fetchAll(callable $callable = null)
     {
         return iterator_to_array($this->fetch($callable), false);
-    }
-
-    /**
-     * Returns a single column from the CSV data
-     *
-     * The callable function will be applied to each value to be return
-     *
-     * @param int      $column_index field Index
-     * @param callable $callable     a callable function
-     *
-     * @throws InvalidArgumentException If the column index is not a positive integer or 0
-     *
-     * @return array
-     */
-    public function fetchColumn($column_index = 0, callable $callable = null)
-    {
-        if (false === filter_var($column_index, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]])) {
-            throw new InvalidArgumentException(
-                'the column index must be a positive integer or 0'
-            );
-        }
-        $filterColumn = function ($row) use ($column_index) {
-            return array_key_exists($column_index, $row);
-        };
-        $selectColumn = function ($row) use ($column_index) {
-            return $row[$column_index];
-        };
-
-        $iterator = $this->fetch($callable);
-        $iterator = new CallbackFilterIterator($iterator, $filterColumn);
-
-        return iterator_to_array(new MapIterator($iterator, $selectColumn), false);
     }
 
     /**
@@ -178,7 +219,7 @@ class Reader extends AbstractCsv
      *
      * @throws InvalidArgumentException If the submitted keys are invalid
      *
-     * @return array
+     * @return Iterator
      */
     public function fetchAssoc($offset_or_keys = 0, callable $callable = null)
     {
@@ -199,7 +240,7 @@ class Reader extends AbstractCsv
             return array_combine($keys, $row);
         };
 
-        return iterator_to_array(new MapIterator($this->fetch($callable), $combineArray), false);
+        return new MapIterator($this->fetch($callable), $combineArray);
     }
 
     /**
@@ -214,7 +255,7 @@ class Reader extends AbstractCsv
      */
     protected function getAssocKeys($offset_or_keys)
     {
-        if (is_array($offset_or_keys) && ! empty($offset_or_keys)) {
+        if (is_array($offset_or_keys) && !empty($offset_or_keys)) {
             return $offset_or_keys;
         }
 
@@ -264,11 +305,11 @@ class Reader extends AbstractCsv
      */
     protected function assertValidAssocKeys(array $keys)
     {
-        $test = array_unique(array_filter($keys, function ($value) {
+        $isValidKey = function ($value) {
             return is_scalar($value) || (is_object($value) && method_exists($value, '__toString'));
-        }));
+        };
 
-        if ($keys !== $test) {
+        if ($keys !== array_unique(array_filter($keys, $isValidKey))) {
             throw new InvalidArgumentException('Use a flat array with unique string values');
         }
     }

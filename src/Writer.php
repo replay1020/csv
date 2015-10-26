@@ -4,7 +4,7 @@
 *
 * @license http://opensource.org/licenses/MIT
 * @link https://github.com/thephpleague/csv/
-* @version 7.2.0
+* @version 8.0.0
 * @package League.csv
 *
 * For the full copyright and license information, please view the LICENSE
@@ -88,9 +88,7 @@ class Writer extends AbstractCsv
     public function insertAll($rows)
     {
         if (!is_array($rows) && !$rows instanceof Traversable) {
-            throw new InvalidArgumentException(
-                'the provided data must be an array OR a \Traversable object'
-            );
+            throw new InvalidArgumentException('the provided data must be an array OR a \Traversable object');
         }
 
         foreach ($rows as $row) {

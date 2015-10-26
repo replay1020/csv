@@ -1,6 +1,27 @@
 #Changelog
 All Notable changes to `League\Csv` will be documented in this file
 
+## 8.0.0 - 2015-XX-XX
+
+### Added
+
+- `League\Csv\Reader::fetchPairs`
+
+### Deprecated
+
+- Nothing
+
+### Fixed
+
+- `League\Csv\Reader::fetchColumn` callable function now expect the first argument to be a string
+- `League\Csv\Reader::fetchColumn` now returns an `Iterator`
+- `League\Csv\Reader::fetchAssoc` now returns an `Iterator`
+
+### Removed
+
+- `League\Csv\Reader::query`
+- `League\Csv\Config\Controls::detectDelimiterList`
+- Support for `PHP 5.4`
 
 ## 7.2.0 - 2015-XX-XX
 

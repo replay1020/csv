@@ -94,7 +94,7 @@ class ControlsTest extends PHPUnit_Framework_TestCase
 
     public function testDetectDelimiterList()
     {
-        $this->assertSame([4 => ','], $this->csv->detectDelimiterList());
+        $this->assertSame([',' => 4], $this->csv->fetchDelimitersOccurrence([',']));
     }
 
     /**
@@ -103,7 +103,7 @@ class ControlsTest extends PHPUnit_Framework_TestCase
      */
     public function testDetectDelimiterListWithInvalidRowLimit()
     {
-        $this->csv->detectDelimiterList(-4);
+        $this->csv->fetchDelimitersOccurrence([','], -4);
     }
 
     public function testDetectDelimiterListWithNoCSV()
@@ -111,7 +111,7 @@ class ControlsTest extends PHPUnit_Framework_TestCase
         $file = new SplTempFileObject();
         $file->fwrite("How are you today ?\nI'm doing fine thanks!");
         $csv = Writer::createFromFileObject($file);
-        $this->assertSame([], $csv->detectDelimiterList(5, ['toto', '|']));
+        $this->assertSame(['|' => 0], $csv->fetchDelimitersOccurrence(['toto', '|'], 5));
     }
 
     public function testDetectDelimiterListWithInconsistentCSV()
@@ -125,7 +125,7 @@ class ControlsTest extends PHPUnit_Framework_TestCase
         $data->fputcsv(['toto', 'tata', 'tutu']);
 
         $csv = Writer::createFromFileObject($data);
-        $this->assertSame([12 => '|', 4 => ';'], $csv->detectDelimiterList(5, ['|']));
+        $this->assertSame(['|' => 12, ';' => 4], $csv->fetchDelimitersOccurrence(['|', ';'], 5));
     }
 
     /**

@@ -4,7 +4,7 @@
 *
 * @license http://opensource.org/licenses/MIT
 * @link https://github.com/thephpleague/csv/
-* @version 7.2.0
+* @version 8.0.0
 * @package League.csv
 *
 * For the full copyright and license information, please view the LICENSE
@@ -12,7 +12,6 @@
 */
 namespace League\Csv;
 
-use CallbackFilterIterator;
 use InvalidArgumentException;
 use IteratorAggregate;
 use JsonSerializable;
@@ -90,7 +89,7 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
      * a path to a file
      *
      * @param object|string $path      The file path
-     * @param string        $open_mode the file open mode flag
+     * @param string        $open_mode The file open mode flag
      */
     protected function __construct($path, $open_mode = 'r+')
     {
@@ -104,9 +103,9 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
      * Returns a normalize path which could be a SplFileObject
      * or a string path
      *
-     * @param object|string $path the filepath
+     * @param SplFileObject|string $path the filepath
      *
-     * @return \SplFileObject|string
+     * @return SplFileObject|string
      */
     protected function normalizePath($path)
     {
@@ -114,7 +113,7 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
             return $path;
         }
 
-        return trim($path);
+        return (string) $path;
     }
 
     /**
@@ -149,12 +148,12 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
      */
     protected function getConversionIterator()
     {
-        $iterator = $this->getIterator();
-        $iterator->setFlags($this->flags | SplFileObject::READ_AHEAD | SplFileObject::SKIP_EMPTY);
-        $iterator = $this->applyBomStripping($iterator);
-        $iterator = new CallbackFilterIterator($iterator, function ($row) {
+        $this->addFilter(function ($row) {
             return is_array($row) && [null] != $row;
         });
+        $iterator = $this->getIterator();
+        $iterator->setFlags(SplFileObject::READ_CSV | SplFileObject::READ_AHEAD | SplFileObject::SKIP_EMPTY);
+        $iterator = $this->applyBomStripping($iterator);
         $iterator = $this->applyIteratorFilter($iterator);
         $iterator = $this->applyIteratorSortBy($iterator);
 
@@ -198,7 +197,7 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
             $path = $path->getPath().'/'.$path->getBasename();
         }
 
-        return new static(trim($path), $open_mode);
+        return new static($path, $open_mode);
     }
 
     /**
@@ -250,14 +249,14 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
     /**
      * Creates a {@link AbstractCsv} instance from another {@link AbstractCsv} object
      *
-     * @param string $class_name the class to be instantiated
-     * @param string $open_mode  the file open mode flag
+     * @param string $class     the class to be instantiated
+     * @param string $open_mode the file open mode flag
      *
      * @return static
      */
-    protected function newInstance($class_name, $open_mode)
+    protected function newInstance($class, $open_mode)
     {
-        $csv = new $class_name($this->path, $open_mode);
+        $csv = new $class($this->path, $open_mode);
         $csv->delimiter = $this->delimiter;
         $csv->enclosure = $this->enclosure;
         $csv->escape = $this->escape;
@@ -275,11 +274,11 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
      *
      * @param string $open_mode the file open mode flag
      *
-     * @return \League\Csv\Writer
+     * @return Writer
      */
     public function newWriter($open_mode = 'r+')
     {
-        return $this->newInstance('\League\Csv\Writer', $open_mode);
+        return $this->newInstance(Writer::class, $open_mode);
     }
 
     /**
@@ -287,10 +286,10 @@ abstract class AbstractCsv implements JsonSerializable, IteratorAggregate
      *
      * @param string $open_mode the file open mode flag
      *
-     * @return \League\Csv\Reader
+     * @return Reader
      */
     public function newReader($open_mode = 'r+')
     {
-        return $this->newInstance('\League\Csv\Reader', $open_mode);
+        return $this->newInstance(Reader::class, $open_mode);
     }
 }

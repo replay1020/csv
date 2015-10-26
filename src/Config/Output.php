@@ -4,7 +4,7 @@
 *
 * @license http://opensource.org/licenses/MIT
 * @link https://github.com/thephpleague/csv/
-* @version 7.2.0
+* @version 8.0.0
 * @package League.csv
 *
 * For the full copyright and license information, please view the LICENSE
@@ -15,6 +15,7 @@ namespace League\Csv\Config;
 use DomDocument;
 use InvalidArgumentException;
 use Iterator;
+use League\Csv\AbstractCsv;
 use League\Csv\Modifier\MapIterator;
 use SplFileObject;
 
@@ -103,9 +104,8 @@ trait Output
 
             return $this;
         }
-        $str = (string) $str;
-        $str = trim($str);
-        $this->output_bom = $str;
+
+        $this->output_bom = (string) $str;
 
         return $this;
     }
@@ -127,10 +127,11 @@ trait Output
      */
     public function getInputBOM()
     {
-        if (! $this->input_bom) {
+        if (!$this->input_bom) {
             $bom = [
-                self::BOM_UTF32_BE, self::BOM_UTF32_LE,
-                self::BOM_UTF16_BE, self::BOM_UTF16_LE, self::BOM_UTF8,
+                AbstractCsv::BOM_UTF32_BE, AbstractCsv::BOM_UTF32_LE,
+                AbstractCsv::BOM_UTF16_BE, AbstractCsv::BOM_UTF16_LE,
+                AbstractCsv::BOM_UTF8,
             ];
             $csv = $this->getIterator();
             $csv->setFlags(SplFileObject::READ_CSV);
@@ -157,7 +158,6 @@ trait Output
     public function output($filename = null)
     {
         if (!is_null($filename)) {
-            $filename = trim($filename);
             $filename = filter_var($filename, FILTER_SANITIZE_STRING, FILTER_FLAG_STRIP_LOW);
             header('Content-Type: application/octet-stream');
             header('Content-Transfer-Encoding: binary');
@@ -228,14 +228,16 @@ trait Output
             return $iterator;
         }
 
-        return new MapIterator($iterator, function ($row) {
+        $converter = function ($row) {
             foreach ($row as &$value) {
                 $value = mb_convert_encoding($value, 'UTF-8', $this->encodingFrom);
             }
             unset($value);
 
             return $row;
-        });
+        };
+
+        return new MapIterator($iterator, $converter);
     }
 
     /**
@@ -265,17 +267,21 @@ trait Output
     public function toXML($root_name = 'csv', $row_name = 'row', $cell_name = 'cell')
     {
         $doc = new DomDocument('1.0', 'UTF-8');
-        $root = $doc->createElement($root_name);
-        $iterator = $this->convertToUtf8($this->getConversionIterator());
-        foreach ($iterator as $row) {
+        $createRowElement = function (array $row) use ($doc, $row_name, $cell_name) {
             $item = $doc->createElement($row_name);
-            array_walk($row, function ($value) use (&$item, $doc, $cell_name) {
+            foreach ($row as $value) {
                 $content = $doc->createTextNode($value);
                 $cell = $doc->createElement($cell_name);
                 $cell->appendChild($content);
                 $item->appendChild($cell);
-            });
-            $root->appendChild($item);
+            }
+            return $item;
+        };
+
+        $iterator = new MapIterator($this->convertToUtf8($this->getConversionIterator()), $createRowElement);
+        $root = $doc->createElement($root_name);
+        foreach ($iterator as $row) {
+            $root->appendChild($row);
         }
         $doc->appendChild($root);
 
